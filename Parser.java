@@ -1,6 +1,10 @@
 package plc.project;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The parser takes the sequence of tokens emitted by the lexer and turns that
@@ -36,6 +40,10 @@ public final class Parser {
      * next tokens start a field, aka {@code LET}.
      */
     public Ast.Field parseField() throws ParseException {
+        // Notes for part b:
+        // Match on LET
+        // Peek on Identifier, =, Expression, ;
+        // Return new Ast.Field
         throw new UnsupportedOperationException(); //TODO
     }
 
@@ -53,7 +61,18 @@ public final class Parser {
      * statement, then it is an expression/assignment statement.
      */
     public Ast.Stmt parseStatement() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        // Parsing for Expressions
+        Ast.Expr expr = parseExpression();
+        if (match('=')) {
+            Ast.Expr expr1 = parseExpression();
+            if (match(';')) {
+                return new Ast.Stmt.Assignment(expr, expr1);
+            }
+            throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
+        } else if (match(';')) {
+            return new Ast.Stmt.Expression(expr);
+        }
+        throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
     }
 
     /**
@@ -105,42 +124,92 @@ public final class Parser {
      * Parses the {@code expression} rule.
      */
     public Ast.Expr parseExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        return parseLogicalExpression();
     }
 
     /**
      * Parses the {@code logical-expression} rule.
      */
     public Ast.Expr parseLogicalExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        Ast.Expr expr = parseEqualityExpression();
+
+        while (match("AND", "OR")) {
+            String operator = tokens.get(-1).toString();
+            Ast.Expr right = parseEqualityExpression();
+            expr = new Ast.Expr.Binary(operator, expr, right);
+        }
+        return expr;
+
     }
 
     /**
      * Parses the {@code equality-expression} rule.
      */
     public Ast.Expr parseEqualityExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        Ast.Expr expr = parseAdditiveExpression();
+
+        while (match("<", "<=", ">", ">=", "==", "!=")) {
+            String operator = tokens.get(-1).toString();
+            Ast.Expr right = parseAdditiveExpression();
+            expr = new Ast.Expr.Binary(operator, expr, right);
+        }
+
+        return expr;
     }
 
     /**
      * Parses the {@code additive-expression} rule.
      */
     public Ast.Expr parseAdditiveExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        Ast.Expr expr = parseMultiplicativeExpression();
+
+        while (match("+", "-")) {
+            String operator = tokens.get(-1).toString();
+            Ast.Expr right = parseMultiplicativeExpression();
+            expr = new Ast.Expr.Binary(operator, expr, right);
+        }
+        return expr;
     }
 
     /**
      * Parses the {@code multiplicative-expression} rule.
      */
     public Ast.Expr parseMultiplicativeExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        Ast.Expr expr = parseSecondaryExpression();
+
+        while (match("*", "/")) {
+            String operator = tokens.get(-1).toString();
+            Ast.Expr right = parseSecondaryExpression();
+            expr = new Ast.Expr.Binary(operator, expr, right);
+        }
+        return expr;
     }
 
     /**
      * Parses the {@code secondary-expression} rule.
      */
     public Ast.Expr parseSecondaryExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        // Unfinished..
+        Ast.Expr expr = parsePrimaryExpression();
+
+        while (match(".")) {
+            if (match(Token.Type.IDENTIFIER)) {
+                if (match('(')) {
+                    Ast.Expr parameters = parseExpression();
+                    if (!match(')')) {
+                        throw new ParseException("Error: No ending )", tokens.get(0).getIndex());
+                    }
+                    return new Ast.Expr.Group(parameters);
+                }
+                // If matches "expr.<Something>" Accessing Objects and Variables..?
+                // Not sure what parameters should be/how to retrieve.
+                // Should be able to chain them... ex: object.sub_object.variable
+                // return new Ast.Expr.Access(expr, tokens.get(-1).toString());
+            } else {
+                throw new ParseException("Error: No identifier after .", tokens.get(0).getIndex());
+            }
+        }
+        return expr;
     }
 
     /**
@@ -150,7 +219,88 @@ public final class Parser {
      * not strictly necessary.
      */
     public Ast.Expr parsePrimaryExpression() throws ParseException {
-        throw new UnsupportedOperationException(); //TODO
+        // Booleans
+        if (match("NIL"))   { return new Ast.Expr.Literal(null);  }
+        if (match("TRUE"))  { return new Ast.Expr.Literal(true);  }
+        if (match("FALSE")) { return new Ast.Expr.Literal(false); }
+
+        // Characters
+        if (match(Token.Type.CHARACTER)) {
+            // Remove 's & Replace Escape Characters.
+            String val = tokens.get(-1).getLiteral();
+            val.replace("'", "");
+            val.replace("\\b", "\b");
+            val.replace("\\n", "\n");
+            val.replace("\\r", "\r");
+            val.replace("\\t", "\t");
+            val.replace("\\'", "\'");
+            val.replace("\\\\", "\\");
+            Character character = val.charAt(0);
+
+            return new Ast.Expr.Literal(character);
+        }
+
+        // Strings
+        if (match(Token.Type.STRING)) {
+            // Remove "s & Replace Escape Characters.
+            String val = tokens.get(-1).getLiteral();
+            val.replace("\"", "");
+            val.replace("\\b", "\b");
+            val.replace("\\n", "\n");
+            val.replace("\\r", "\r");
+            val.replace("\\t", "\t");
+            val.replace("\\'", "\'");
+            val.replace("\\\\", "\\");
+            return new Ast.Expr.Literal(val);
+        }
+
+        // Decimals
+        if (match(Token.Type.DECIMAL)) {
+            return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).toString()));
+        }
+
+        // Integers
+        if (match(Token.Type.INTEGER)) {
+            return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).toString()));
+        }
+
+        // Group Expression
+
+        // Identifier AND/OR Parameters..
+        // Needs work.
+        if (match(Token.Type.IDENTIFIER)) {
+            // String of Identifier Token.
+            String name = tokens.get(-1).getLiteral();
+            if (match("(")) {
+                // Flag variable to check for ")"
+                boolean flag = false;
+
+                List<Ast.Expr> parameters = new ArrayList<Ast.Expr>();
+                Ast.Expr param = parseExpression();
+                parameters.add(param);
+
+                while (match(",")) {
+                    Ast.Expr extra_param = parseExpression();
+                    parameters.add(param);
+                    if (match(")")) {
+                        flag = true;
+                        break;
+                    }
+                }
+
+                if (!flag) {
+                    throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+                }
+                // Should be a function..?
+                // Ex: Identifier(param, param1, param2)
+                // Could be incorrect.
+                return new Ast.Expr.Function(Optional.empty(), name, parameters);
+            }
+            // Returning Variable without any ()
+            return new Ast.Expr.Access(Optional.empty(), name);
+        }
+
+
     }
 
     /**
