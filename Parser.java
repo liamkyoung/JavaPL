@@ -63,13 +63,14 @@ public final class Parser {
     public Ast.Stmt parseStatement() throws ParseException {
         // Parsing for Expressions
         Ast.Expr expr = parseExpression();
-        if (match('=')) {
+        if (match("=")) {
             Ast.Expr expr1 = parseExpression();
-            if (match(';')) {
+            if (match(";")) {
                 return new Ast.Stmt.Assignment(expr, expr1);
             }
             throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
-        } else if (match(';')) {
+        }
+        else if (match(";")) {
             return new Ast.Stmt.Expression(expr);
         }
         throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
@@ -133,10 +134,17 @@ public final class Parser {
     public Ast.Expr parseLogicalExpression() throws ParseException {
         Ast.Expr expr = parseEqualityExpression();
 
-        while (match("AND", "OR")) {
-            String operator = tokens.get(-1).toString();
-            Ast.Expr right = parseEqualityExpression();
-            expr = new Ast.Expr.Binary(operator, expr, right);
+        while (peek("AND") || peek("OR")) {
+            if (match("AND")) {
+                Ast.Expr right = parseEqualityExpression();
+                expr = new Ast.Expr.Binary("AND", expr, right);
+            }
+
+            else {
+                match("OR");
+                Ast.Expr right = parseEqualityExpression();
+                expr = new Ast.Expr.Binary("OR", expr, right);
+            }
         }
         return expr;
 
@@ -148,10 +156,37 @@ public final class Parser {
     public Ast.Expr parseEqualityExpression() throws ParseException {
         Ast.Expr expr = parseAdditiveExpression();
 
-        while (match("<", "<=", ">", ">=", "==", "!=")) {
-            String operator = tokens.get(-1).toString();
-            Ast.Expr right = parseAdditiveExpression();
-            expr = new Ast.Expr.Binary(operator, expr, right);
+        while (peek("<") || peek("<=") || peek(">") || peek(">=") || peek("==") || peek("!=")) {
+            if (match("<")) {
+                Ast.Expr right = parseAdditiveExpression();
+                expr = new Ast.Expr.Binary("<", expr, right);
+            }
+
+            else if (match("<=")){
+                Ast.Expr right = parseAdditiveExpression();
+                expr = new Ast.Expr.Binary("<=", expr, right);
+            }
+
+            else if (match(">")){
+                Ast.Expr right = parseAdditiveExpression();
+                expr = new Ast.Expr.Binary(">", expr, right);
+            }
+
+            else if (match(">=")){
+                Ast.Expr right = parseAdditiveExpression();
+                expr = new Ast.Expr.Binary(">=", expr, right);
+            }
+
+            else if (match("==")){
+                Ast.Expr right = parseAdditiveExpression();
+                expr = new Ast.Expr.Binary("==", expr, right);
+            }
+
+            else {
+                match("!=");
+                Ast.Expr right = parseEqualityExpression();
+                expr = new Ast.Expr.Binary("!=", expr, right);
+            }
         }
 
         return expr;
@@ -163,10 +198,17 @@ public final class Parser {
     public Ast.Expr parseAdditiveExpression() throws ParseException {
         Ast.Expr expr = parseMultiplicativeExpression();
 
-        while (match("+", "-")) {
-            String operator = tokens.get(-1).toString();
-            Ast.Expr right = parseMultiplicativeExpression();
-            expr = new Ast.Expr.Binary(operator, expr, right);
+        while (peek("+") || peek("-")) {
+            if (match("+")) {
+                Ast.Expr right = parseMultiplicativeExpression();
+                expr = new Ast.Expr.Binary("+", expr, right);
+            }
+
+            else {
+                match("-");
+                Ast.Expr right = parseMultiplicativeExpression();
+                expr = new Ast.Expr.Binary("-", expr, right);
+            }
         }
         return expr;
     }
@@ -177,10 +219,17 @@ public final class Parser {
     public Ast.Expr parseMultiplicativeExpression() throws ParseException {
         Ast.Expr expr = parseSecondaryExpression();
 
-        while (match("*", "/")) {
-            String operator = tokens.get(-1).toString();
-            Ast.Expr right = parseSecondaryExpression();
-            expr = new Ast.Expr.Binary(operator, expr, right);
+        while (peek("*") || peek("/")) {
+            if (match("*")) {
+                Ast.Expr right = parseSecondaryExpression();
+                expr = new Ast.Expr.Binary("*", expr, right);
+            }
+
+            else {
+                match("/");
+                Ast.Expr right = parseSecondaryExpression();
+                expr = new Ast.Expr.Binary("/", expr, right);
+            }
         }
         return expr;
     }
@@ -191,32 +240,55 @@ public final class Parser {
     public Ast.Expr parseSecondaryExpression() throws ParseException {
         // Unfinished..
         Ast.Expr expr = parsePrimaryExpression();
+        List<Ast.Expr> parameters = new ArrayList<Ast.Expr>();
 
         while (match(".")) {
             if (match(Token.Type.IDENTIFIER)) {
-                if (match('(')) {
-                    Ast.Expr parameters = parseExpression();
-                    if (!match(')')) {
-                        throw new ParseException("Error: No ending )", tokens.get(0).getIndex());
+                String name = tokens.get(-1).getLiteral();
+                if (match("(")) {
+                    if (match(")")) {
+                        return new Ast.Expr.Function(Optional.of(expr), name, parameters);
                     }
-                    return new Ast.Expr.Group(parameters);
+                    Ast.Expr param = parseExpression();
+                    parameters.add(param);
+
+                    while (match(",")) {
+                        Ast.Expr extra_param = parseExpression();
+                        parameters.add(extra_param);
+                    }
+                    if (match(")")) {
+                        return new Ast.Expr.Function(Optional.of(expr), name, parameters);
+                    }
+
+                    else {
+                        throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+                    }
+
                 }
-                // If matches "expr.<Something>" Accessing Objects and Variables..?
-                // Not sure what parameters should be/how to retrieve.
-                // Should be able to chain them... ex: object.sub_object.variable
-                // return new Ast.Expr.Access(expr, tokens.get(-1).toString());
-            } else {
-                throw new ParseException("Error: No identifier after .", tokens.get(0).getIndex());
+                else {
+                    return new Ast.Expr.Access(Optional.of(expr), name);
+                }
+            }
+            else {
+                throw new ParseException("Error: No identifier", tokens.get(0).getIndex());
             }
         }
+
+
         return expr;
-    }
+
+
+
+        }
+
+
 
     /**
      * Parses the {@code primary-expression} rule. This is the top-level rule
      * for expressions and includes literal values, grouping, variables, and
      * functions. It may be helpful to break these up into other methods but is
      * not strictly necessary.
+     * @return
      */
     public Ast.Expr parsePrimaryExpression() throws ParseException {
         // Booleans
@@ -228,13 +300,13 @@ public final class Parser {
         if (match(Token.Type.CHARACTER)) {
             // Remove 's & Replace Escape Characters.
             String val = tokens.get(-1).getLiteral();
-            val.replace("'", "");
-            val.replace("\\b", "\b");
-            val.replace("\\n", "\n");
-            val.replace("\\r", "\r");
-            val.replace("\\t", "\t");
-            val.replace("\\'", "\'");
-            val.replace("\\\\", "\\");
+            val = val.replace("'", "");
+            val = val.replace("\\b", "\b");
+            val = val.replace("\\n", "\n");
+            val = val.replace("\\r", "\r");
+            val = val.replace("\\t", "\t");
+            val = val.replace("\\'", "\'");
+            val = val.replace("\\\\", "\\");
             Character character = val.charAt(0);
 
             return new Ast.Expr.Literal(character);
@@ -244,24 +316,35 @@ public final class Parser {
         if (match(Token.Type.STRING)) {
             // Remove "s & Replace Escape Characters.
             String val = tokens.get(-1).getLiteral();
-            val.replace("\"", "");
-            val.replace("\\b", "\b");
-            val.replace("\\n", "\n");
-            val.replace("\\r", "\r");
-            val.replace("\\t", "\t");
-            val.replace("\\'", "\'");
-            val.replace("\\\\", "\\");
+            val = val.replace("\"", "");
+            val = val.replace("\\b", "\b");
+            val = val.replace("\\n", "\n");
+            val = val.replace("\\r", "\r");
+            val = val.replace("\\t", "\t");
+            val = val.replace("\\'", "\'");
+            val = val.replace("\\\\", "\\");
             return new Ast.Expr.Literal(val);
+        }
+
+        if (match(Token.Type.INTEGER) && !match(Token.Type.DECIMAL)) {
+            return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).getLiteral()));
         }
 
         // Decimals
         if (match(Token.Type.DECIMAL)) {
-            return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).toString()));
+            return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).getLiteral()));
         }
 
-        // Integers
-        if (match(Token.Type.INTEGER)) {
-            return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).toString()));
+
+        if (match("(")) {
+            Ast.Expr expr = parseExpression();
+
+            if (match(")")) {
+                return new Ast.Expr.Group(expr);
+            }
+            else {
+                throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+            }
         }
 
         // Group Expression
@@ -273,33 +356,33 @@ public final class Parser {
             String name = tokens.get(-1).getLiteral();
             if (match("(")) {
                 // Flag variable to check for ")"
-                boolean flag = false;
-
                 List<Ast.Expr> parameters = new ArrayList<Ast.Expr>();
+                //Empty fcn
+                if (match(")")) {
+                    return new Ast.Expr.Function(Optional.empty(), name, parameters);
+                }
+
                 Ast.Expr param = parseExpression();
                 parameters.add(param);
 
                 while (match(",")) {
                     Ast.Expr extra_param = parseExpression();
-                    parameters.add(param);
-                    if (match(")")) {
-                        flag = true;
-                        break;
-                    }
+                    parameters.add(extra_param);
+                }
+                if (match(")")) {
+                    return new Ast.Expr.Function(Optional.empty(), name, parameters);
                 }
 
-                if (!flag) {
+                else {
                     throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
                 }
-                // Should be a function..?
-                // Ex: Identifier(param, param1, param2)
-                // Could be incorrect.
-                return new Ast.Expr.Function(Optional.empty(), name, parameters);
+
             }
             // Returning Variable without any ()
             return new Ast.Expr.Access(Optional.empty(), name);
         }
 
+        return new Ast.Expr.Access(Optional.empty(), "");
 
     }
 
