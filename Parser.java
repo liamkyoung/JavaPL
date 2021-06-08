@@ -63,6 +63,7 @@ public final class Parser {
     public Ast.Stmt parseStatement() throws ParseException {
         // Parsing for Expressions
         Ast.Expr expr = parseExpression();
+        // Match takes in string, not characters
         if (match("=")) {
             Ast.Expr expr1 = parseExpression();
             if (match(";")) {
@@ -155,6 +156,9 @@ public final class Parser {
      */
     public Ast.Expr parseEqualityExpression() throws ParseException {
         Ast.Expr expr = parseAdditiveExpression();
+        
+        //Not sure if this method of peeking first is better, but the other method of using one match statement 
+        //may have some issues if the input is something like "<<=>"
 
         while (peek("<") || peek("<=") || peek(">") || peek(">=") || peek("==") || peek("!=")) {
             if (match("<")) {
@@ -237,8 +241,9 @@ public final class Parser {
     /**
      * Parses the {@code secondary-expression} rule.
      */
+    
+    //Changed a lot here, let me know if you have any questions and feel free to change anything
     public Ast.Expr parseSecondaryExpression() throws ParseException {
-        // Unfinished..
         Ast.Expr expr = parsePrimaryExpression();
         List<Ast.Expr> parameters = new ArrayList<Ast.Expr>();
 
@@ -300,6 +305,7 @@ public final class Parser {
         if (match(Token.Type.CHARACTER)) {
             // Remove 's & Replace Escape Characters.
             String val = tokens.get(-1).getLiteral();
+            // Strings can't be changed so we have to replace val each time
             val = val.replace("'", "");
             val = val.replace("\\b", "\b");
             val = val.replace("\\n", "\n");
@@ -325,6 +331,9 @@ public final class Parser {
             val = val.replace("\\\\", "\\");
             return new Ast.Expr.Literal(val);
         }
+        
+        //Don't think the && statement is necessary
+        //Also remember to use getLiteral() instead of toString()
 
         if (match(Token.Type.INTEGER) && !match(Token.Type.DECIMAL)) {
             return new Ast.Expr.Literal(new BigInteger(tokens.get(-1).getLiteral()));
@@ -334,6 +343,8 @@ public final class Parser {
         if (match(Token.Type.DECIMAL)) {
             return new Ast.Expr.Literal(new BigDecimal(tokens.get(-1).getLiteral()));
         }
+        
+        // Group Expression
 
 
         if (match("(")) {
@@ -346,18 +357,16 @@ public final class Parser {
                 throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
             }
         }
+        
+        //Redid this section
 
-        // Group Expression
-
-        // Identifier AND/OR Parameters..
-        // Needs work.
         if (match(Token.Type.IDENTIFIER)) {
             // String of Identifier Token.
             String name = tokens.get(-1).getLiteral();
             if (match("(")) {
                 // Flag variable to check for ")"
                 List<Ast.Expr> parameters = new ArrayList<Ast.Expr>();
-                //Empty fcn
+                //Empty function
                 if (match(")")) {
                     return new Ast.Expr.Function(Optional.empty(), name, parameters);
                 }
@@ -381,6 +390,8 @@ public final class Parser {
             // Returning Variable without any ()
             return new Ast.Expr.Access(Optional.empty(), name);
         }
+        
+        //Only here since a return statement is needed for code to compile
 
         return new Ast.Expr.Access(Optional.empty(), "");
 
