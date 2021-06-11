@@ -69,12 +69,12 @@ public final class Parser {
             if (match(";")) {
                 return new Ast.Stmt.Assignment(expr, expr1);
             }
-            throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
+            throw new ParseException("Error: No semicolon", tokens.get(-1).getIndex());
         }
         else if (match(";")) {
             return new Ast.Stmt.Expression(expr);
         }
-        throw new ParseException("Error: No semicolon", tokens.get(0).getIndex());
+        throw new ParseException("Error: No semicolon", tokens.get(-1).getIndex());
     }
 
     /**
@@ -264,11 +264,9 @@ public final class Parser {
                     if (match(")")) {
                         return new Ast.Expr.Function(Optional.of(expr), name, parameters);
                     }
-
                     else {
-                        throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+                        throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(-1).getIndex());
                     }
-
                 }
                 else {
                     return new Ast.Expr.Access(Optional.of(expr), name);
@@ -278,13 +276,8 @@ public final class Parser {
                 throw new ParseException("Error: No identifier", tokens.get(0).getIndex());
             }
         }
-
-
         return expr;
-
-
-
-        }
+    }
 
 
 
@@ -354,7 +347,7 @@ public final class Parser {
                 return new Ast.Expr.Group(expr);
             }
             else {
-                throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+                throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(-1).getIndex());
             }
         }
         
@@ -381,9 +374,8 @@ public final class Parser {
                 if (match(")")) {
                     return new Ast.Expr.Function(Optional.empty(), name, parameters);
                 }
-
                 else {
-                    throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(0).getIndex());
+                    throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(-1).getIndex());
                 }
 
             }
@@ -391,10 +383,8 @@ public final class Parser {
             return new Ast.Expr.Access(Optional.empty(), name);
         }
         
-        //Only here since a return statement is needed for code to compile
-
-        return new Ast.Expr.Access(Optional.empty(), "");
-
+        // Changed new Ast.Expr.Access(Optional.empty(), ""); to error for entering incorrect syntax
+        throw new ParseException("Error: Unable to create expression.", tokens.get(-1).getIndex());
     }
 
     /**
