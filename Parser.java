@@ -273,7 +273,7 @@ public final class Parser {
                 }
             }
             else {
-                throw new ParseException("Error: No identifier", tokens.get(0).getIndex());
+                throw new ParseException("Error: No identifier", tokens.get(-1).getIndex());
             }
         }
         return expr;
