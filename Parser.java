@@ -516,17 +516,30 @@ public final class Parser {
         if (match(Token.Type.CHARACTER)) {
             // Remove 's & Replace Escape Characters.
             String val = tokens.get(-1).getLiteral();
+            Character newVal;
             // Strings can't be changed so we have to replace val each time
-            val = val.replace("'", "");
-            val = val.replace("\\b", "\b");
-            val = val.replace("\\n", "\n");
-            val = val.replace("\\r", "\r");
-            val = val.replace("\\t", "\t");
-            val = val.replace("\\'", "\'");
-            val = val.replace("\\\\", "\\");
-            Character character = val.charAt(0);
 
-            return new Ast.Expr.Literal(character);
+            if (!val.contains("\\'")) {
+                val = val.replace("'", "");
+            } else if (val.equals("'\\''")){
+                newVal = '\'';
+            }
+
+            if (val.equals("\\b")) {
+                newVal = '\b';
+            } else if (val.equals("\\n")) {
+                newVal = '\n';
+            } else if (val.equals("\\r")) {
+                newVal = '\r';
+            } else if (val.equals("\\t")) {
+                newVal = '\t';
+            } else if (val.equals("\\\\")) {
+                newVal = '\\';
+            } else {
+                newVal = val.charAt(0);
+            }
+
+            return new Ast.Expr.Literal(newVal);
         }
 
         // Strings
