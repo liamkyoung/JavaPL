@@ -36,16 +36,26 @@ public final class Parser {
         List<Ast.Field> fields = new ArrayList<Ast.Field>();
         List<Ast.Method> methods = new ArrayList<Ast.Method>();
 
-        while (peek("LET")) {
-            Ast.Field field = parseField();
-            fields.add(field);
+        // while there are still tokens...
+        while (tokens.has(0)) {
+            if (peek("LET")) {
+                Ast.Field field = parseField();
+                fields.add(field);
+            } else if (peek("DEF")) {
+                Ast.Method method = parseMethod();
+                methods.add(method);
+            }
         }
-
-        while (peek("DEF")) {
-            Ast.Method method = parseMethod();
-            methods.add(method);
-        }
-
+//        while (peek("LET")) {
+//            Ast.Field field = parseField();
+//            fields.add(field);
+//        }
+//
+//        while (peek("DEF")) {
+//            Ast.Method method = parseMethod();
+//            methods.add(method);
+//        }
+//
         return new Ast.Source(fields, methods);
     }
 
@@ -257,8 +267,9 @@ public final class Parser {
             return new Ast.Stmt.If(condition, thenStatements, elseStatements);
 
         }
+        // Adding + 1 to the .getIndex() because the "DO" token should located after the last token in the sequence...
         else {
-            throw new ParseException("Error! No \"DO\" token.", tokens.get(-1).getIndex());
+            throw new ParseException("Error! No \"DO\" token.", tokens.get(-1).getIndex() + 1);
         }
 
     }
@@ -569,6 +580,7 @@ public final class Parser {
         }
 
         // Group Expression
+        // Have tokens.get(-1).getIndex() + 1 since error should occur where the parenthesis should be...
 
 
         if (match("(")) {
@@ -578,7 +590,7 @@ public final class Parser {
                 return new Ast.Expr.Group(expr);
             }
             else {
-                throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(-1).getIndex());
+                throw new ParseException("Error: No closing right parenthesis. \")\"", tokens.get(-1).getIndex() + 1);
             }
         }
 
