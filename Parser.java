@@ -615,7 +615,15 @@ public final class Parser {
         }
 
         // Changed new Ast.Expr.Access(Optional.empty(), ""); to error for entering incorrect syntax
+
+        // Protecting against index out of bounds errors...
+        if (tokens.index == 0) {
+            throw new ParseException("Error: Unable to create expression.", tokens.get(0).getIndex());
+        }
+
+        // Throws error pointing towards highest index if nothing matches.
         throw new ParseException("Error: Unable to create expression.", tokens.get(-1).getIndex());
+
     }
 
     /**
