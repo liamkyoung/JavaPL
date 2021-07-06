@@ -92,8 +92,40 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Literal ast) {
-        // Edge cases? Probably not.
-        return Environment.create(ast.getLiteral());
+        // Check if Literal is BigInt, BigDec, Boolean, String, Null, Character
+        // Returns literal value as a PlcObject.
+        Object literal = ast.getLiteral();
+
+        if (literal instanceof BigInteger) {
+            // Commented out special cases to see if the tests pass correctly
+//            if (literal == BigInteger.ZERO) {
+//                return Environment.create(BigInteger.ZERO);
+//            } else if (literal == BigInteger.ONE) {
+//                return Environment.create(BigInteger.ONE);
+//            } else if (literal == BigInteger.TEN) {
+//                return Environment.create(BigInteger.TEN);
+//            }
+            return Environment.create(literal);
+        } else if (literal instanceof BigDecimal) {
+//            if (literal == BigDecimal.ONE) {
+//                return Environment.create(BigDecimal.ONE);
+//            }
+            return Environment.create(literal);
+        } else if (literal instanceof Boolean) {
+            // Assign TRUE, FALSE
+            if (literal == Boolean.TRUE) {
+                return Environment.create(true);
+            } else {
+                return Environment.create(false);
+            }
+        } else if (literal == null) {
+            return Environment.NIL;
+        } else if (literal instanceof String) {
+            return Environment.create(literal);
+        } else if (literal instanceof Character) {
+            return Environment.create(literal);
+        }
+        throw new RuntimeException("Received an unexpected literal type. Cannot process.");
     }
 
     @Override
@@ -103,7 +135,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         Environment.PlcObject group = visit(ast.getExpression());
 
         if (group.getValue() == null) {
-            return Environment.NIL;
+            throw new RuntimeException("Error: Group was null");
         }
         // Documentation says to return value but method says to return Environment.PlcObject so simply
         // returning the PlcObject with attached value.
@@ -112,16 +144,23 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Binary ast) {
-        if (ast.getOperator().equals("+")) {
-            // If one is a string, concatenate.
-            // Otherwise, if left == decimal, right must be a decimal; same for integers.
-            Ast.Expr left = ast.getLeft();
-            Ast.Expr right = ast.getRight();
-            // Below code seems very bad...
-            // There's probably a better way to check if an expression is a string.
-            if (requireType(String.class, visit(left)).getClass().equals(String.class)) {
+        Ast.Expr l = ast.getLeft();
+        Ast.Expr r = ast.getRight();
+        Environment.PlcObject left = visit(l);
+        Environment.PlcObject right = visit(r);
+        if (left == Environment.NIL || right == Environment.NIL) {
+            // End recursion a different way?
+            throw new RuntimeException("Error: Left or right binary was equal to null.");
+        }
 
-            }
+        if (ast.getOperator().equals("+")) {
+
+            // If EITHER is a string, concatenate.
+            // Otherwise, if left == decimal, right must be a decimal; same for integers.
+
+            // x + y * 3
+
+            // Check if
             // Check left and right for strings
             // If both fail, check for integers/decimals
 
