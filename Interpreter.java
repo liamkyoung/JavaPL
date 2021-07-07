@@ -57,17 +57,70 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Assignment ast) {
-        throw new UnsupportedOperationException(); //TODO
+        // Needs work... Does not assign variable to new value.
+        if (ast.getReceiver() instanceof Ast.Expr.Access) {
+            Ast.Expr.Access rec = (Ast.Expr.Access) ast.getReceiver();
+            if (rec.getReceiver().isPresent()) {
+                Environment.PlcObject receiver = visit(rec.getReceiver().get());
+                receiver.setField(rec.getName(), receiver);
+                // Set a field...
+            } else {
+                // Lookup variable
+                // Set variable in current scope
+                Environment.Variable v = scope.lookupVariable(rec.getName());
+                scope.defineVariable(v.getName(), v.getValue());
+            }
+        } else {
+            throw new RuntimeException("Error: Type not assignable.");
+        }
+        return Environment.NIL;
     }
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.If ast) {
-        throw new UnsupportedOperationException(); //TODO
+        // To test, must finish Ast.Stmt.Assignment...
+        if (requireType(Boolean.class, visit(ast.getCondition()))) {
+            try {
+                scope = new Scope(scope);
+                if ((Boolean) visit(ast.getCondition()).getValue()) {
+                    for (Ast.Stmt stmt : ast.getThenStatements()) {
+                        visit(stmt);
+                    }
+                } else {
+                    for (Ast.Stmt stmt : ast.getElseStatements()) {
+                        visit(stmt);
+                    }
+                }
+            } finally {
+                scope = scope.getParent();
+            }
+        } else {
+            throw new RuntimeException("Error: If Statement does not contain a boolean condition.");
+        }
+        return Environment.NIL;
     }
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.For ast) {
-        throw new UnsupportedOperationException(); //TODO
+        // NEEDS WORK:
+        // For: FOR name IN list DO sum = sum + num; END
+        // new Ast.Stmt.For(
+        //  "name",             // name
+        //   new Ast.Expr.Access(Optional.empty(), "list"), // value
+        //   Arrays.asList(new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt"))) // statements
+        // )
+        while (requireType(Iterable.class, visit(ast.getValue())).equals(ast.getValue())) {
+            try {
+                scope = new Scope(scope);
+                scope.defineVariable(ast.getName(), visit(ast.getValue()));
+                for (Ast.Stmt stmt : ast.getStatements()) {
+                    visit(stmt);
+                }
+            } finally {
+                scope = scope.getParent();
+            }
+        }
+        return Environment.NIL;
     }
 
     @Override
@@ -283,20 +336,185 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                         return Environment.create(false);
                     }
                 } else if (left instanceof BigInteger && right instanceof BigInteger) {
-
+                    BigInteger l = (BigInteger) left;
+                    BigInteger r = (BigInteger) right;
+                    int result = l.compareTo(r);
+                    if (result == -1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof String && right instanceof String) {
+                    String l = (String) left;
+                    String r = (String) right;
+                    int result = l.compareTo(r);
+                    if (result == -1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof Character && right instanceof Character) {
+                    Character l = (Character) left;
+                    Character r = (Character) right;
+                    int result = l.compareTo(r);
+                    // -1 if l < r <- TRUE
+                    // 0 if equal <- FALSE
+                    // 1 if l > r <- FALSE
+                    if (result == -1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
                 } else {
-
+                    throw new RuntimeException("Error: Comparing Two Incompatible Types with <.");
                 }
-
             } else {
                 throw new RuntimeException("Error: Binary Expression is not Comparable.");
             }
         } else if (ast.getOperator().equals(">")) {
-
+            if (left instanceof Comparable && right instanceof Comparable) {
+                // Comparing...
+                if (left instanceof BigDecimal && right instanceof BigDecimal) {
+                    BigDecimal l = (BigDecimal) left;
+                    BigDecimal r = (BigDecimal) right;
+                    int result = l.compareTo(r);
+                    // -1 if l < r <- FALSE
+                    // 0 if equal <- FALSE
+                    // 1 if l > r <- TRUE
+                    if (result == 1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof BigInteger && right instanceof BigInteger) {
+                    BigInteger l = (BigInteger) left;
+                    BigInteger r = (BigInteger) right;
+                    int result = l.compareTo(r);
+                    if (result == 1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof String && right instanceof String) {
+                    String l = (String) left;
+                    String r = (String) right;
+                    int result = l.compareTo(r);
+                    if (result == 1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof Character && right instanceof Character) {
+                    Character l = (Character) left;
+                    Character r = (Character) right;
+                    int result = l.compareTo(r);
+                    if (result == 1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Comparing Two Incompatible Types with >.");
+                }
+            } else {
+                throw new RuntimeException("Error: Binary Expression is not Comparable.");
+            }
         } else if (ast.getOperator().equals("<=")) {
-
+            if (left instanceof Comparable && right instanceof Comparable) {
+                // Comparing...
+                if (left instanceof BigDecimal && right instanceof BigDecimal) {
+                    BigDecimal l = (BigDecimal) left;
+                    BigDecimal r = (BigDecimal) right;
+                    int result = l.compareTo(r);
+                    // -1 if l < r <- TRUE
+                    // 0 if equal <- TRUE
+                    // 1 if l > r <- FALSE
+                    if (result <= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof BigInteger && right instanceof BigInteger) {
+                    BigInteger l = (BigInteger) left;
+                    BigInteger r = (BigInteger) right;
+                    int result = l.compareTo(r);
+                    if (result <= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof String && right instanceof String) {
+                    String l = (String) left;
+                    String r = (String) right;
+                    int result = l.compareTo(r);
+                    if (result <= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof Character && right instanceof Character) {
+                    Character l = (Character) left;
+                    Character r = (Character) right;
+                    int result = l.compareTo(r);
+                    if (result <= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Comparing Two Incompatible Types with <=.");
+                }
+            } else {
+                throw new RuntimeException("Error: Binary Expression is not Comparable.");
+            }
         } else if (ast.getOperator().equals(">=")) {
-
+            if (left instanceof Comparable && right instanceof Comparable) {
+                // Comparing...
+                if (left instanceof BigDecimal && right instanceof BigDecimal) {
+                    BigDecimal l = (BigDecimal) left;
+                    BigDecimal r = (BigDecimal) right;
+                    int result = l.compareTo(r);
+                    // -1 if l < r <- FALSE
+                    // 0 if equal <- TRUE
+                    // 1 if l > r <- TRUE
+                    if (result >= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof BigInteger && right instanceof BigInteger) {
+                    BigInteger l = (BigInteger) left;
+                    BigInteger r = (BigInteger) right;
+                    int result = l.compareTo(r);
+                    if (result >= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof String && right instanceof String) {
+                    String l = (String) left;
+                    String r = (String) right;
+                    int result = l.compareTo(r);
+                    if (result >= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof Character && right instanceof Character) {
+                    Character l = (Character) left;
+                    Character r = (Character) right;
+                    int result = l.compareTo(r);
+                    if (result >= 0) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Comparing Two Incompatible Types with >=.");
+                }
+            } else {
+                throw new RuntimeException("Error: Binary Expression is not Comparable.");
+            }
         } else if (ast.getOperator().equals("==")) {
             return Environment.create(Objects.equals(left, right));
         } else if (ast.getOperator().equals("!=")) {
@@ -307,14 +525,12 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Access ast) {
-        // Needs work.. Still wrapping my head around these concepts.
         // Access : (Optional(receivers), name)
         // If methods are present...
         if (ast.getReceiver().isPresent()) {
-            // Grab list of receivers???
-            // Evaluate receiver.
-            // Return value of appropriate field.
-            return Environment.NIL; // Placeholder.
+            Ast.Expr expr = ast.getReceiver().get();
+            Environment.PlcObject obj = visit(expr);
+            return obj.getField(ast.getName()).getValue();
         } else {
             return scope.lookupVariable(ast.getName()).getValue();
         }

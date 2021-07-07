@@ -46,16 +46,7 @@ public final class Parser {
                 methods.add(method);
             }
         }
-//        while (peek("LET")) {
-//            Ast.Field field = parseField();
-//            fields.add(field);
-//        }
-//
-//        while (peek("DEF")) {
-//            Ast.Method method = parseMethod();
-//            methods.add(method);
-//        }
-//
+
         return new Ast.Source(fields, methods);
     }
 
