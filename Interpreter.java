@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -144,38 +145,152 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Expr.Binary ast) {
-        Ast.Expr l = ast.getLeft();
-        Ast.Expr r = ast.getRight();
-        Environment.PlcObject left = visit(l);
-        Environment.PlcObject right = visit(r);
-        if (left == Environment.NIL || right == Environment.NIL) {
-            // End recursion a different way?
-            throw new RuntimeException("Error: Left or right binary was equal to null.");
-        }
+        // Grab left & right
+        Object left = visit(ast.getLeft()).getValue();
+        Object right = visit(ast.getRight()).getValue();
 
         if (ast.getOperator().equals("+")) {
-
-            // If EITHER is a string, concatenate.
-            // Otherwise, if left == decimal, right must be a decimal; same for integers.
-
-            // x + y * 3
-
-            // Check if
-            // Check left and right for strings
-            // If both fail, check for integers/decimals
-
+            // Concatenation
+            if (left instanceof String || right instanceof String) {
+                String result = left.toString() + right.toString();
+                return Environment.create(result);
+            } else if (left instanceof BigInteger) {
+                // Right must also be the same type.
+                if (right instanceof BigInteger) {
+                    BigInteger result = ((BigInteger) left).add((BigInteger) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Incompatible Number Types Trying To Be Added.");
+                }
+            } else if (left instanceof BigDecimal) {
+                // Right must also be the same type.
+                if (right instanceof BigDecimal) {
+                    BigDecimal result = ((BigDecimal) left).add((BigDecimal) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Incompatible Number Types Trying To Be Added.");
+                }
+            }
         } else if (ast.getOperator().equals("-")) {
-
+            // If left is BigInt/BigDec, rhs must be same.
+            if (left instanceof BigInteger) {
+                if (right instanceof BigInteger) {
+                    BigInteger result = ((BigInteger) left).subtract((BigInteger) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Second number is an incompatible type (LHS is Integer).");
+                }
+            } else if (left instanceof BigDecimal) {
+                if (right instanceof BigDecimal) {
+                    BigDecimal result = ((BigDecimal) left).subtract((BigDecimal) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Second number is an incompatible type (LHS is Decimal).");
+                }
+            } else {
+                throw new RuntimeException("Error: Left side of Binary Expression was not a number.");
+            }
         } else if (ast.getOperator().equals("*")) {
-
+            // If left is BigInt/BigDec, rhs must be same.
+            if (left instanceof BigInteger) {
+                if (right instanceof BigInteger) {
+                    BigInteger result = ((BigInteger) left).multiply((BigInteger) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Second number is an incompatible type (LHS is Integer).");
+                }
+            } else if (left instanceof BigDecimal) {
+                if (right instanceof BigDecimal) {
+                    BigDecimal result = ((BigDecimal) left).multiply((BigDecimal) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Second number is an incompatible type (LHS is Decimal).");
+                }
+            } else {
+                throw new RuntimeException("Error: Left side of Binary Expression was not a number.");
+            }
         } else if (ast.getOperator().equals("/")) {
+            // if left is dec/int, rhs must also be same
+            if (left instanceof BigInteger && right instanceof BigInteger) {
+                if (!right.equals(0)) {
+                    BigInteger result = ((BigInteger) left).divide((BigInteger) right);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Denominator is 0. Cannot divide.");
+                }
+
+            } else if (left instanceof BigDecimal && right instanceof BigDecimal) {
+                if (!right.equals(0)) {
+                    BigDecimal result = (((BigDecimal) left).divide((BigDecimal) right)).setScale(0, RoundingMode.HALF_EVEN);
+                    return Environment.create(result);
+                } else {
+                    throw new RuntimeException("Error: Denominator is 0. Cannot divide.");
+                }
+
+            } else {
+                throw new RuntimeException("Error: Incompatible types when trying to divide.");
+            }
 
         } else if (ast.getOperator().equals("AND")) {
-
+            if (left instanceof Boolean) {
+                Boolean l = (Boolean) left;
+                if (!l) { // false
+                    return Environment.create(false);
+                } else if (right instanceof Boolean) {
+                    Boolean r = (Boolean) right;
+                    if (r) { // left && right
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Right Hand Side of AND is not a Boolean.");
+                }
+            } else {
+                throw new RuntimeException("Error: Left Hand Side of AND is not a Boolean.");
+            }
         } else if (ast.getOperator().equals("OR")) {
-
+            if (left instanceof Boolean) {
+                Boolean l = (Boolean) left;
+                if (l) {
+                    return Environment.create(true);
+                } else if (right instanceof Boolean) {
+                    Boolean r = (Boolean) right;
+                    if (r) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Right Hand Side of OR is not a Boolean.");
+                }
+            } else {
+                throw new RuntimeException("Error: Left Hand Side of OR is not a Boolean.");
+            }
         } else if (ast.getOperator().equals("<")) {
+            if (left instanceof Comparable && right instanceof Comparable) {
+                // Comparing...
+                if (left instanceof BigDecimal && right instanceof BigDecimal) {
+                    BigDecimal l = (BigDecimal) left;
+                    BigDecimal r = (BigDecimal) right;
+                    int result = l.compareTo(r);
+                    // -1 if l < r <- TRUE
+                    // 0 if equal <- FALSE
+                    // 1 if l > r <- FALSE
+                    if (result == -1) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else if (left instanceof BigInteger && right instanceof BigInteger) {
 
+                } else {
+
+                }
+
+            } else {
+                throw new RuntimeException("Error: Binary Expression is not Comparable.");
+            }
         } else if (ast.getOperator().equals(">")) {
 
         } else if (ast.getOperator().equals("<=")) {
@@ -183,9 +298,9 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         } else if (ast.getOperator().equals(">=")) {
 
         } else if (ast.getOperator().equals("==")) {
-
+            return Environment.create(Objects.equals(left, right));
         } else if (ast.getOperator().equals("!=")) {
-
+            return Environment.create(!Objects.equals(left, right));
         }
         throw new RuntimeException("Error: No valid operator");
     }
