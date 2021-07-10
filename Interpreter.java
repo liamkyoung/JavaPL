@@ -42,7 +42,8 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Expression ast) {
-        throw new UnsupportedOperationException(); //TODO
+        visit(ast.getExpression());
+        return Environment.NIL;
     }
 
     @Override
@@ -59,16 +60,18 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     public Environment.PlcObject visit(Ast.Stmt.Assignment ast) {
         // Needs work... Does not assign variable to new value.
         if (ast.getReceiver() instanceof Ast.Expr.Access) {
-            Ast.Expr.Access rec = (Ast.Expr.Access) ast.getReceiver();
-            if (rec.getReceiver().isPresent()) {
-                Environment.PlcObject receiver = visit(rec.getReceiver().get());
-                receiver.setField(rec.getName(), receiver);
+            Ast.Expr.Access var = (Ast.Expr.Access) ast.getReceiver();
+            if (var.getReceiver().isPresent()) {
+                Environment.PlcObject receiver = visit(var.getReceiver().get());
+                receiver.setField(var.getName(), visit(ast.getValue()));
+                // define variable...?
                 // Set a field...
+                // Return receiver?
             } else {
                 // Lookup variable
                 // Set variable in current scope
-                Environment.Variable v = scope.lookupVariable(rec.getName());
-                scope.defineVariable(v.getName(), v.getValue());
+                Environment.Variable v = scope.lookupVariable(var.getName());
+                v.setValue(visit(ast.getValue()));
             }
         } else {
             throw new RuntimeException("Error: Type not assignable.");
@@ -79,24 +82,17 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     @Override
     public Environment.PlcObject visit(Ast.Stmt.If ast) {
         // To test, must finish Ast.Stmt.Assignment...
-        if (requireType(Boolean.class, visit(ast.getCondition()))) {
-            try {
-                scope = new Scope(scope);
-                if ((Boolean) visit(ast.getCondition()).getValue()) {
-                    for (Ast.Stmt stmt : ast.getThenStatements()) {
-                        visit(stmt);
-                    }
-                } else {
-                    for (Ast.Stmt stmt : ast.getElseStatements()) {
-                        visit(stmt);
-                    }
-                }
-            } finally {
-                scope = scope.getParent();
+        Boolean condition = requireType(Boolean.class, visit(ast.getCondition()));
+        if (condition) {
+            for (Ast.Stmt stmt : ast.getThenStatements()) {
+                visit(stmt);
             }
         } else {
-            throw new RuntimeException("Error: If Statement does not contain a boolean condition.");
+            for (Ast.Stmt stmt : ast.getElseStatements()) {
+                visit(stmt);
+            }
         }
+        // throw new RuntimeException("Error: If Statement does not contain a boolean condition.");
         return Environment.NIL;
     }
 
@@ -109,10 +105,12 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
         //   new Ast.Expr.Access(Optional.empty(), "list"), // value
         //   Arrays.asList(new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt"))) // statements
         // )
-        while (requireType(Iterable.class, visit(ast.getValue())).equals(ast.getValue())) {
+        Iterable list = requireType(Iterable.class, visit(ast.getValue()));
+        for (Object obj : list) {
+            // Assume Objects are PlcObjects
             try {
                 scope = new Scope(scope);
-                scope.defineVariable(ast.getName(), visit(ast.getValue()));
+                scope.defineVariable(ast.getName(), (Environment.PlcObject) obj);
                 for (Ast.Stmt stmt : ast.getStatements()) {
                     visit(stmt);
                 }
@@ -141,7 +139,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Return ast) {
-        throw new UnsupportedOperationException(); //TODO
+        throw new Return(visit(ast.getValue()));
     }
 
     @Override
@@ -200,6 +198,27 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
     public Environment.PlcObject visit(Ast.Expr.Binary ast) {
         // Grab left & right
         Object left = visit(ast.getLeft()).getValue();
+
+        if (ast.getOperator().equals("OR")) {
+            if (left instanceof Boolean) {
+                Boolean l = (Boolean) left;
+                if (l) {
+                    return Environment.create(true);
+                } else if (visit(ast.getRight()).getValue() instanceof Boolean) {
+                    Boolean r = (Boolean) visit(ast.getRight()).getValue();
+                    if (r) {
+                        return Environment.create(true);
+                    } else {
+                        return Environment.create(false);
+                    }
+                } else {
+                    throw new RuntimeException("Error: Right Hand Side of OR is not a Boolean.");
+                }
+            } else {
+                throw new RuntimeException("Error: Left Hand Side of OR is not a Boolean.");
+            }
+        }
+
         Object right = visit(ast.getRight()).getValue();
 
         if (ast.getOperator().equals("+")) {
@@ -274,7 +293,7 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
             } else if (left instanceof BigDecimal && right instanceof BigDecimal) {
                 if (!right.equals(0)) {
-                    BigDecimal result = (((BigDecimal) left).divide((BigDecimal) right)).setScale(0, RoundingMode.HALF_EVEN);
+                    BigDecimal result = (((BigDecimal) left).divide((BigDecimal) right, 1, RoundingMode.HALF_EVEN));
                     return Environment.create(result);
                 } else {
                     throw new RuntimeException("Error: Denominator is 0. Cannot divide.");
@@ -301,24 +320,6 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 }
             } else {
                 throw new RuntimeException("Error: Left Hand Side of AND is not a Boolean.");
-            }
-        } else if (ast.getOperator().equals("OR")) {
-            if (left instanceof Boolean) {
-                Boolean l = (Boolean) left;
-                if (l) {
-                    return Environment.create(true);
-                } else if (right instanceof Boolean) {
-                    Boolean r = (Boolean) right;
-                    if (r) {
-                        return Environment.create(true);
-                    } else {
-                        return Environment.create(false);
-                    }
-                } else {
-                    throw new RuntimeException("Error: Right Hand Side of OR is not a Boolean.");
-                }
-            } else {
-                throw new RuntimeException("Error: Left Hand Side of OR is not a Boolean.");
             }
         } else if (ast.getOperator().equals("<")) {
             if (left instanceof Comparable && right instanceof Comparable) {
