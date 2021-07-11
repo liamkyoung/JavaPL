@@ -60,8 +60,8 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
         scope.defineFunction(ast.getName(), ast.getParameters().size(), args -> {
             scope = new Scope(curScope);
-            for (String para : ast.getParameters()) {
-                scope.defineVariable(para, args.get(0));
+            for (int i = 0; i < ast.getParameters().size(); i++) {
+                scope.defineVariable(ast.getParameters().get(i), args.get(i));
             }
             for (Ast.Stmt stmt : ast.getStatements()) {
                 if (stmt instanceof Ast.Stmt.Return) {
