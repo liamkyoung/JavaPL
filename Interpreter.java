@@ -95,18 +95,12 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.Assignment ast) {
-        // Needs work... Does not assign variable to new value.
         if (ast.getReceiver() instanceof Ast.Expr.Access) {
             Ast.Expr.Access var = (Ast.Expr.Access) ast.getReceiver();
             if (var.getReceiver().isPresent()) {
                 Environment.PlcObject receiver = visit(var.getReceiver().get());
                 receiver.setField(var.getName(), visit(ast.getValue()));
-                // define variable...?
-                // Set a field...
-                // Return receiver?
             } else {
-                // Lookup variable
-                // Set variable in current scope
                 Environment.Variable v = scope.lookupVariable(var.getName());
                 v.setValue(visit(ast.getValue()));
             }
@@ -118,7 +112,6 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.If ast) {
-        // To test, must finish Ast.Stmt.Assignment...
         Boolean condition = requireType(Boolean.class, visit(ast.getCondition()));
         if (condition) {
             for (Ast.Stmt stmt : ast.getThenStatements()) {
@@ -129,19 +122,11 @@ public class Interpreter implements Ast.Visitor<Environment.PlcObject> {
                 visit(stmt);
             }
         }
-        // throw new RuntimeException("Error: If Statement does not contain a boolean condition.");
         return Environment.NIL;
     }
 
     @Override
     public Environment.PlcObject visit(Ast.Stmt.For ast) {
-        // NEEDS WORK:
-        // For: FOR name IN list DO sum = sum + num; END
-        // new Ast.Stmt.For(
-        //  "name",             // name
-        //   new Ast.Expr.Access(Optional.empty(), "list"), // value
-        //   Arrays.asList(new Ast.Stmt.Expression(new Ast.Expr.Access(Optional.empty(), "stmt"))) // statements
-        // )
         Iterable list = requireType(Iterable.class, visit(ast.getValue()));
         for (Object obj : list) {
             // Assume Objects are PlcObjects
