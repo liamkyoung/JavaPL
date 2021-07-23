@@ -44,7 +44,16 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Field ast) {
-        throw new UnsupportedOperationException();  // TODO
+        Ast.Expr expr;
+        if (ast.getValue().isPresent()) {
+            expr = ast.getValue().get();
+            visit(expr);
+            requireAssignable(expr.getType(), Environment.getType(ast.getTypeName()));
+        }
+        Environment.Variable v = scope.defineVariable(ast.getName(), ast.getName(), Environment.getType(ast.getTypeName()), Environment.NIL);
+        ast.setVariable(v);
+
+        return null;
     }
 
     @Override
@@ -54,7 +63,13 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Expression ast) {
-        throw new UnsupportedOperationException();  // TODO
+        Ast.Expr expr = ast.getExpression();
+        if (expr instanceof Ast.Expr.Function) {
+            visit(expr);
+        } else {
+            throw new RuntimeException("Error: Ast.Stmt.Expression was passed a non-function.");
+        }
+        return null;
     }
 
     @Override
@@ -64,26 +79,91 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Assignment ast) {
+        // Needs work:
+//        Ast.Expr expr = ast.getReceiver();
+//        if (!(expr instanceof Ast.Expr.Access)) {
+//            // throw new RuntimeException()
+//        } else if () {
+//            // Value is not assignable to receiver.
+//        }
+//        visit(expr);
         throw new UnsupportedOperationException();  // TODO
     }
 
     @Override
     public Void visit(Ast.Stmt.If ast) {
-        throw new UnsupportedOperationException();  // TODO
+        visit(ast.getCondition());
+        List<Ast.Stmt> tStatements = ast.getThenStatements();
+        List<Ast.Stmt> eStatements = ast.getElseStatements();
+
+        requireAssignable(ast.getCondition().getType(), Environment.Type.BOOLEAN);
+        if (tStatements.isEmpty()) {
+            throw new RuntimeException("Error: If statement does not contain a body.");
+        }
+
+        scope = new Scope(scope);
+        for (Ast.Stmt statement : tStatements) {
+            visit(statement);
+        }
+        scope = scope.getParent();
+
+        scope = new Scope(scope);
+        for (Ast.Stmt statement : eStatements) {
+            visit(statement);
+        }
+        scope = scope.getParent();
+
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        throw new UnsupportedOperationException();  // TODO
+        Ast.Expr value = ast.getValue();
+        List<Ast.Stmt> statements = ast.getStatements();
+
+        visit(value);
+        // Add functionality for Integer_Iterable...?
+        requireAssignable(value.getType(), Environment.Type.INTEGER_ITERABLE);
+
+        if (statements.isEmpty()) {
+            throw new RuntimeException("Error: No statements contained within FOR loop.");
+        }
+
+        scope = new Scope(scope);
+        scope.defineVariable(ast.getName(), ast.getName(), Environment.Type.INTEGER, Environment.NIL);
+        for (Ast.Stmt statement : statements) {
+            visit(statement);
+        }
+        scope = scope.getParent();
+
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.While ast) {
-        throw new UnsupportedOperationException();  // TODO
+        List<Ast.Stmt> contents = ast.getStatements();
+        Ast.Expr condition = ast.getCondition();
+        visit(condition);
+
+        requireAssignable(condition.getType(), Environment.Type.BOOLEAN);
+        scope = new Scope(scope);
+        for (Ast.Stmt statement : contents) {
+            visit(statement);
+        }
+        scope = scope.getParent();
+
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Return ast) {
+        // ???
+        // Will need Method to help get return value of method.
+        Ast.Expr value = ast.getValue();
+        visit(value);
+//        if (value.getType() instanceof Environment.Type.INTEGER) {
+//
+//        }
         throw new UnsupportedOperationException();  // TODO
     }
 
@@ -117,7 +197,15 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Expr.Group ast) {
-        throw new UnsupportedOperationException();  // TODO
+        Ast.Expr expr = ast.getExpression();
+        if (expr instanceof Ast.Expr.Binary) {
+            Ast.Expr.Binary binary = (Ast.Expr.Binary) expr;
+            visit(binary);
+            ast.setType(binary.getType());
+        } else {
+            throw new RuntimeException("Error: Expression contained in () was not a Binary Expression");
+        }
+        return null;
     }
 
     @Override
@@ -125,6 +213,8 @@ public final class Analyzer implements Ast.Visitor<Void> {
         String op = ast.getOperator();
         Ast.Expr left = ast.getLeft();
         Ast.Expr right = ast.getRight();
+        visit(left);
+        visit(right);
 
         String leftType = left.getType().getName();
         String rightType = right.getType().getName();
@@ -177,26 +267,48 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Expr.Access ast) {
-        // Needs work.
+        // Needs work. Incorrect.
         if (ast.getReceiver().isPresent()) {
             Ast.Expr var = ast.getReceiver().get();
-            // Probably incorrect
-            Environment.Variable variable = scope.lookupVariable(var.toString());
+            visit(var);
+            Environment.Type type = var.getType();
+            Environment.Variable variable = type.getField(var.toString());
             ast.setVariable(variable);
         } else {
-            ast.getVariable();
+            // Infinite recursion? Yes.
+            // visit(ast);
+            Environment.Variable variable = scope.lookupVariable(ast.getName());
+            ast.setVariable(variable);
         }
+        throw new RuntimeException("Error: Ast.Expr.Access unable to access type.");
     }
 
     @Override
     public Void visit(Ast.Expr.Function ast) {
-        throw new UnsupportedOperationException();  // TODO
+        if (ast.getReceiver().isPresent()) {
+            Ast.Expr expr = ast.getReceiver().get();
+            List<Ast.Expr> args = ast.getArguments();
+
+            for (Ast.Expr arg : args) {
+                visit(arg);
+                requireAssignable(arg.getType());
+            }
+
+            visit(expr);
+            // expr.getType();
+
+
+            //  Environment.Function function = scope.defineFunction();
+        } else {
+            Environment.Function function = scope.lookupFunction(ast.getName(), ast.getArguments().size());
+            ast.setFunction(function);
+        }
     }
 
     public static void requireAssignable(Environment.Type target, Environment.Type type) {
         if (target.getName() == type.getName()) {
             // Matching type.
-        } else if (target.getName().equals("ANY")) {
+        } else if (target.getName().equals("Any")) {
             // target is ANY
         } else if (target.getName().equals("Comparable")) {
             // Comparable
