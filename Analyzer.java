@@ -285,24 +285,24 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Expr.Function ast) {
+        // Not working 100%
         if (ast.getReceiver().isPresent()) {
             Ast.Expr expr = ast.getReceiver().get();
             List<Ast.Expr> args = ast.getArguments();
 
+            // How to check for parameter's type?
             for (Ast.Expr arg : args) {
                 visit(arg);
-                requireAssignable(arg.getType());
+                // requireAssignable(arg.getType());
             }
 
             visit(expr);
-            // expr.getType();
-
-
             //  Environment.Function function = scope.defineFunction();
         } else {
             Environment.Function function = scope.lookupFunction(ast.getName(), ast.getArguments().size());
             ast.setFunction(function);
         }
+        return null;
     }
 
     public static void requireAssignable(Environment.Type target, Environment.Type type) {
