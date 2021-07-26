@@ -2,6 +2,7 @@ package plc.project;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,6 +15,7 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     public Scope scope;
     private Ast.Method method;
+    private Environment.Type returnValue;
 
     public Analyzer(Scope parent) {
         scope = new Scope(parent);
@@ -58,7 +60,35 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Method ast) {
-        throw new UnsupportedOperationException();  // TODO
+        String name = ast.getName();
+        List<String> params = ast.getParameters();
+        List<Ast.Stmt> statements = ast.getStatements();
+        List<String> typeString = ast.getParameterTypeNames();
+        List<Environment.Type> types = new ArrayList<>();
+
+        for (String parameter : typeString) {
+            types.add(Environment.getType(parameter));
+        }
+
+        String returnType = "Nil";
+        if (ast.getReturnTypeName().isPresent()) {
+            returnType = ast.getReturnTypeName().get();
+            // Environment.getType(returnType).
+        }
+
+        // Define Function
+        Environment.Function function = scope.defineFunction(name, name, types, Environment.getType(returnType), args -> Environment.NIL);
+        ast.setFunction(function);
+
+        returnValue = ast.getFunction().getReturnType();
+
+        scope = new Scope(scope);
+        for (Ast.Stmt statement : statements) {
+            visit(statement);
+        }
+        scope = scope.getParent();
+
+        return null;
     }
 
     @Override
@@ -74,20 +104,49 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Declaration ast) {
-        throw new UnsupportedOperationException();  // TODO
+        String name = ast.getName();
+        Environment.Variable variable;
+        String typeName = "Nil";
+
+        if (ast.getTypeName().isPresent()) {
+            typeName = ast.getTypeName().get();
+        }
+        if (ast.getValue().isPresent()) {
+            visit(ast.getValue().get());
+        }
+
+        if (ast.getValue().isPresent() && ast.getTypeName().isPresent()) {
+            requireAssignable(Environment.getType(typeName), ast.getValue().get().getType());
+            variable = scope.defineVariable(name, name, Environment.getType(typeName), Environment.NIL);
+            ast.setVariable(variable);
+        } else if (ast.getValue().isPresent()) {
+            variable = scope.defineVariable(name, name, ast.getValue().get().getType(), Environment.NIL);
+            ast.setVariable(variable);
+        } else if (ast.getTypeName().isPresent()) {
+            variable = scope.defineVariable(name, name, Environment.getType(typeName), Environment.NIL);
+            ast.setVariable(variable);
+        } else {
+            throw new RuntimeException("Error: No type was presented and no value was set when declaring variable.");
+        }
+
+        return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Assignment ast) {
         // Needs work:
-//        Ast.Expr expr = ast.getReceiver();
-//        if (!(expr instanceof Ast.Expr.Access)) {
-//            // throw new RuntimeException()
-//        } else if () {
-//            // Value is not assignable to receiver.
-//        }
-//        visit(expr);
-        throw new UnsupportedOperationException();  // TODO
+        Ast.Expr expr = ast.getReceiver();
+        Ast.Expr value = ast.getValue();
+
+        visit(expr);
+        if (!(expr instanceof Ast.Expr.Access)) {
+            throw new RuntimeException("Error: Receiver in Ast.Stmt.Assignment is not an Ast.Expr.Access");
+        }
+        visit(value);
+
+        requireAssignable(value.getType(), expr.getType());
+
+        return null;
     }
 
     @Override
@@ -122,7 +181,6 @@ public final class Analyzer implements Ast.Visitor<Void> {
         List<Ast.Stmt> statements = ast.getStatements();
 
         visit(value);
-        // Add functionality for Integer_Iterable...?
         requireAssignable(value.getType(), Environment.Type.INTEGER_ITERABLE);
 
         if (statements.isEmpty()) {
@@ -157,14 +215,10 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.Return ast) {
-        // ???
-        // Will need Method to help get return value of method.
-        Ast.Expr value = ast.getValue();
-        visit(value);
-//        if (value.getType() instanceof Environment.Type.INTEGER) {
-//
-//        }
-        throw new UnsupportedOperationException();  // TODO
+        Environment.Type type = ast.getValue().getType();
+        requireAssignable(returnValue, type);
+
+        return null;
     }
 
     @Override
@@ -267,58 +321,64 @@ public final class Analyzer implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Expr.Access ast) {
-        // Needs work. Incorrect.
+        String name = ast.getName();
         if (ast.getReceiver().isPresent()) {
             Ast.Expr var = ast.getReceiver().get();
             visit(var);
             Environment.Type type = var.getType();
-            Environment.Variable variable = type.getField(var.toString());
+            Environment.Variable variable = type.getField(name);
+            scope.defineVariable(name, name, type, variable.getValue());
             ast.setVariable(variable);
         } else {
-            // Infinite recursion? Yes.
-            // visit(ast);
-            Environment.Variable variable = scope.lookupVariable(ast.getName());
+            Environment.Variable variable = scope.lookupVariable(name);
             ast.setVariable(variable);
         }
-        throw new RuntimeException("Error: Ast.Expr.Access unable to access type.");
+        return null;
     }
 
     @Override
     public Void visit(Ast.Expr.Function ast) {
-        // Not working 100%
+        List<Ast.Expr> args = ast.getArguments();   // Arguments of Method .method(arg1, arg2)
+        String name = ast.getName();                // Name of method ex: object.method();
         if (ast.getReceiver().isPresent()) {
             Ast.Expr expr = ast.getReceiver().get();
-            List<Ast.Expr> args = ast.getArguments();
-
+            visit(expr);
+            Environment.Type funcType = expr.getType();
+            List<Environment.Type> methodParams = funcType.getMethod(name, args.size()).getParameterTypes();
             // How to check for parameter's type?
-            for (Ast.Expr arg : args) {
-                visit(arg);
-                // requireAssignable(arg.getType());
+            for (int i = 0; i < args.size(); i++) {
+                visit(args.get(i));
+                Environment.Type paramType = args.get(i).getType();
+                requireAssignable(paramType, methodParams.get(i)); // Compare entered type and parameter type.
             }
 
-            visit(expr);
-            //  Environment.Function function = scope.defineFunction();
+            Environment.Function function = expr.getType().getMethod(name, args.size());
+            ast.setFunction(function);
         } else {
             Environment.Function function = scope.lookupFunction(ast.getName(), ast.getArguments().size());
+            for (Ast.Expr arg : args) {
+                visit(arg);
+            }
+
             ast.setFunction(function);
         }
         return null;
     }
 
     public static void requireAssignable(Environment.Type target, Environment.Type type) {
-        if (target.getName() == type.getName()) {
+        if (target.equals(type)) {
             // Matching type.
-        } else if (target.getName().equals("Any")) {
+        } else if (target.equals(Environment.Type.ANY)) {
             // target is ANY
-        } else if (target.getName().equals("Comparable")) {
+        } else if (target.equals(Environment.Type.COMPARABLE)) {
             // Comparable
-            if (type.getName().equals("Integer")) {
+            if (type.equals(Environment.Type.INTEGER)) {
 
-            } else if (type.getName().equals("Decimal")) {
+            } else if (type.equals(Environment.Type.DECIMAL)) {
 
-            } else if (type.getName().equals("Character")) {
+            } else if (type.equals(Environment.Type.CHARACTER)) {
 
-            } else if (type.getName().equals("String")) {
+            } else if (type.equals(Environment.Type.STRING)) {
 
             } else {
                 throw new RuntimeException("Right Hand Side not a Comparable type.");
