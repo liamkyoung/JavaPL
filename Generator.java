@@ -31,49 +31,168 @@ public final class Generator implements Ast.Visitor<Void> {
         }
     }
 
+    private void makeMain() {
+        String main0 = "public class Main {";
+        String main1 = "public static void main(String[] args) {";
+        String main2 = "System.exit(new Main().main());";
+        String brace = "}";
+
+        writer.write(main0);
+        newline(0);
+        newline(1);
+        writer.write(main1);
+        newline(2);
+        writer.write(main2);
+        newline(1);
+        writer.write(brace);
+        newline(0);
+    }
+
     @Override
     public Void visit(Ast.Source ast) {
-        String main = "public static void main(String[] args) {" +
-                "System.exit(new Main.main());" +
-                "}";
-        writer.write(main);
+        makeMain();
+
+        for (Ast.Field field : ast.getFields()) {
+            newline(1);
+            visit(field);
+        }
+
+        for (Ast.Method method : ast.getMethods()) {
+            newline(1);
+            visit(method);
+        }
+
+        newline(0);
+        newline(0);
+        writer.write("}");
+
         return null;
     }
 
     @Override
     public Void visit(Ast.Field ast) {
+        Environment.Variable var = ast.getVariable();
+        String type = var.getType().getJvmName();
+        String name = var.getName();
+
+        writer.write(type + " " + name);
+
+        if (ast.getValue().isPresent()) {
+            writer.write(" = ");
+            visit(ast.getValue().get());
+        }
+
+        writer.write(";");
+
         return null;
     }
 
     @Override
     public Void visit(Ast.Method ast) {
+        String type = ast.getFunction().getReturnType().getJvmName();
+        String name = ast.getName();
+        List<String> params = ast.getParameters();
+        // paramTypes may be non-jvm type
+        List<String> paramTypes = ast.getParameterTypeNames();
+        List<Ast.Stmt> stmts = ast.getStatements();
+        writer.write(type + " " + name + "(");
+
+        for (int i = 0; i < params.size(); i++) {
+            writer.write(paramTypes.get(i) + " " + params.get(i));
+            if (i != params.size() - 1) {
+                writer.write(", ");
+            }
+        }
+        writer.write(") {");
+
+        if (!stmts.isEmpty()) {
+            for (Ast.Stmt stmt : stmts) {
+                newline(2);
+                visit(stmt);
+            }
+            newline(1);
+        }
+        writer.write("}");
         return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Expression ast) {
+        visit(ast.getExpression());
+        writer.write(";");
         return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Declaration ast) {
+        Environment.Variable var = ast.getVariable();
+        String jvm = var.getJvmName();
+        String type = var.getType().getJvmName();
+
+        writer.write(type + " " + jvm);
+
+        if (ast.getValue().isPresent()) {
+            writer.write(" = ");
+            visit(ast.getValue().get());
+        }
+        writer.write(";");
+
         return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.Assignment ast) {
+        // Need to check...
+        visit(ast.getReceiver());
+        writer.write(" = ");
+        visit(ast.getValue());
+        writer.write(";");
         return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.If ast) {
+        List<Ast.Stmt> tStmts = ast.getThenStatements();
+        List<Ast.Stmt> eStmts = ast.getElseStatements();
+        writer.write("if (");
+        visit(ast.getCondition());
+        writer.write(") {");
+
+        for (Ast.Stmt stmt : tStmts) {
+            newline(1);
+            visit(stmt);
+        }
+
+        newline(0);
+        writer.write("}");
+
+        if (!eStmts.isEmpty()) {
+            writer.write(" else {");
+
+            for (Ast.Stmt stmt : eStmts) {
+                newline(1);
+                visit(stmt);
+            }
+            newline(0);
+            writer.write("}");
+        }
+
         return null;
     }
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        // String start = "for (int %s : %s)".format(visit(ast.getValue()), ast.getName());
-        // writer.write();
+        String name = String.format(" : %s) {", ast.getName());
+        writer.write("for (int ");
+        visit(ast.getValue());
+        writer.write(name);
+        for (Ast.Stmt stmt : ast.getStatements()) {
+            newline(1);
+            visit(stmt);
+        }
+        newline(0);
+        writer.write("}");
+
         return null;
     }
 
@@ -108,7 +227,6 @@ public final class Generator implements Ast.Visitor<Void> {
     public Void visit(Ast.Expr.Literal ast) {
         Object literal = ast.getLiteral();
         String litString = literal.toString();
-        // System.out.println(litString);
 
         if (literal instanceof Boolean) {
             if (litString.equals("true")) {
