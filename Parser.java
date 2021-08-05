@@ -60,22 +60,30 @@ public final class Parser {
 
         if (match(Token.Type.IDENTIFIER)) {
             String name = tokens.get(-1).getLiteral();
-            if (match("=")) {
-                Ast.Expr expr = parseExpression();
-                if (match(";")) {
-                    return new Ast.Field(name, Optional.of(expr));
+            if (match(":")) {
+                if (match(Token.Type.IDENTIFIER)) {
+                    String typeName = tokens.get(-1).getLiteral();
+                    if (match("=")) {
+                        Ast.Expr expr = parseExpression();
+                        if (match(";")) {
+                            return new Ast.Field(name, typeName, Optional.of(expr));
+                        } else {
+                            throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
+                        }
+                    } else {
+                        if (match(";")) {
+                            return new Ast.Field(name, typeName, Optional.empty());
+                        } else {
+                            throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
+                        }
+                    }
                 }
                 else {
-                    throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
+                    throw new ParseException("Error! No identifier for type name.", tokens.get(-1).getIndex());
                 }
             }
             else {
-                if (match(";")) {
-                    return new Ast.Field(name, Optional.empty());
-                }
-                else {
-                    throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
-                }
+                throw new ParseException("Error! No colon.", tokens.get(-1).getIndex());
             }
         }
         else {
@@ -92,6 +100,7 @@ public final class Parser {
     public Ast.Method parseMethod() throws ParseException {
 
         List<String> parameters = new ArrayList<String>();
+        List<String> parameterTypes = new ArrayList<String>();
         List<Ast.Stmt> statements = new ArrayList<Ast.Stmt>();
 
         match("DEF");
@@ -101,24 +110,69 @@ public final class Parser {
             if (match("(")) {
 
                 if (match(Token.Type.IDENTIFIER)) {
-
                     String param = tokens.get(-1).getLiteral();
-                    parameters.add(param);
-                    while (match(",") && !peek(")")){
-
+                    if (match(":")) {
                         if (match(Token.Type.IDENTIFIER)) {
-
-                            String extra_param = tokens.get(-1).getLiteral();
-                            parameters.add(extra_param);
+                            String paramType = tokens.get(-1).getLiteral();
+                            parameters.add(param);
+                            parameterTypes.add(paramType);
+                            while (match(",") && !peek(")")) {
+                                if (match(Token.Type.IDENTIFIER)) {
+                                    String extra_param = tokens.get(-1).getLiteral();
+                                    if (match(":")) {
+                                        if (match(Token.Type.IDENTIFIER)) {
+                                            String extra_paramType = tokens.get(-1).getLiteral();
+                                            parameters.add(extra_param);
+                                            parameterTypes.add(extra_paramType);
+                                        }
+                                        else {
+                                            throw new ParseException("Error! No type name identifier.", tokens.get(-1).getIndex());
+                                        }
+                                    }
+                                    else {
+                                        throw new ParseException("Error! No colon.", tokens.get(-1).getIndex());
+                                    }
+                                }
+                                else {
+                                    throw new ParseException("Error! Trailing comma.", tokens.get(-1).getIndex());
+                                }
+                            }
                         }
                         else {
-                            throw new ParseException("Error! Trailing comma.", tokens.get(-1).getIndex());
+                            throw new ParseException("Error! No type name identifier.", tokens.get(-1).getIndex());
                         }
+                    }
+                    else {
+                        throw new ParseException("Error! No colon.", tokens.get(-1).getIndex());
                     }
 
                 }
 
                 if (match(")")) {
+
+                    if (match(":")){
+                        if (match(Token.Type.IDENTIFIER)) {
+                            String returnType = tokens.get(-1).getLiteral();
+                            if (match("DO")) {
+
+                                while (!peek("END")) {
+                                    Ast.Stmt stmt = parseStatement();
+                                    statements.add(stmt);
+                                }
+
+                                match("END");
+                                return new Ast.Method(name, parameters, parameterTypes, Optional.of(returnType), statements);
+
+
+                            }
+                            else {
+                                throw new ParseException("Error! No \"DO\" token.", tokens.get(-1).getIndex());
+                            }
+                        }
+                        else {
+                            throw new ParseException("Error! No return type identifier.", tokens.get(-1).getIndex());
+                        }
+                    }
 
                     if (match("DO")) {
 
@@ -128,7 +182,7 @@ public final class Parser {
                         }
 
                         match("END");
-                        return new Ast.Method(name, parameters, statements);
+                        return new Ast.Method(name, parameters, parameterTypes, Optional.empty(), statements);
 
 
                     }
@@ -207,6 +261,31 @@ public final class Parser {
 
         if (match(Token.Type.IDENTIFIER)) {
             String name = tokens.get(-1).getLiteral();
+            if (match(":")) {
+                if (match(Token.Type.IDENTIFIER)) {
+                    String typeName = tokens.get(-1).getLiteral();
+                    if (match("=")) {
+                        Ast.Expr expr = parseExpression();
+                        if (match(";")) {
+                            return new Ast.Stmt.Declaration(name, Optional.of(typeName), Optional.of(expr));
+                        }
+                        else {
+                            throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
+                        }
+                    }
+                    else {
+                        if (match(";")) {
+                            return new Ast.Stmt.Declaration(name, Optional.of(typeName), Optional.empty());
+                        }
+                        else {
+                            throw new ParseException("Error! No semicolon.", tokens.get(-1).getIndex());
+                        }
+                    }
+                }
+                else {
+                    throw new ParseException("Error! No type name identifier.", tokens.get(-1).getIndex());
+                }
+            }
             if (match("=")) {
                 Ast.Expr expr = parseExpression();
                 if (match(";")) {
