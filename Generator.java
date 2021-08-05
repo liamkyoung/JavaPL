@@ -38,14 +38,14 @@ public final class Generator implements Ast.Visitor<Void> {
         String brace = "}";
 
         writer.write(main0);
-        newline(0);
-        newline(1);
+        newline(indent);
+        newline(++indent);
         writer.write(main1);
-        newline(2);
+        newline(++indent);
         writer.write(main2);
-        newline(1);
+        newline(--indent);
         writer.write(brace);
-        newline(0);
+        newline(--indent);
     }
 
     @Override
@@ -53,17 +53,17 @@ public final class Generator implements Ast.Visitor<Void> {
         makeMain();
 
         for (Ast.Field field : ast.getFields()) {
-            newline(1);
+            newline(++indent);
             visit(field);
         }
 
         for (Ast.Method method : ast.getMethods()) {
-            newline(1);
+            newline(++indent);
             visit(method);
         }
 
-        newline(0);
-        newline(0);
+        newline(--indent);
+        newline(--indent);
         writer.write("}");
 
         return null;
@@ -106,11 +106,12 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.write(") {");
 
         if (!stmts.isEmpty()) {
+            indent++;
             for (Ast.Stmt stmt : stmts) {
-                newline(2);
+                newline(indent);
                 visit(stmt);
             }
-            newline(1);
+            newline(--indent);
         }
         writer.write("}");
         return null;
@@ -158,22 +159,23 @@ public final class Generator implements Ast.Visitor<Void> {
         visit(ast.getCondition());
         writer.write(") {");
 
+        indent++;
         for (Ast.Stmt stmt : tStmts) {
-            newline(1);
+            newline(indent);
             visit(stmt);
         }
 
-        newline(0);
+        newline(--indent);
         writer.write("}");
 
         if (!eStmts.isEmpty()) {
             writer.write(" else {");
-
+            indent++;
             for (Ast.Stmt stmt : eStmts) {
-                newline(1);
+                newline(indent);
                 visit(stmt);
             }
-            newline(0);
+            newline(--indent);
             writer.write("}");
         }
 
@@ -182,15 +184,14 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        String name = String.format(" : %s) {", ast.getName());
-        writer.write("for (int ");
-        visit(ast.getValue());
-        writer.write(name);
+        String loop = String.format("for (int %s : %s) {", ast.getName(), ast.getValue());
+        writer.write(loop);
+        indent++;
         for (Ast.Stmt stmt : ast.getStatements()) {
-            newline(1);
+            newline(indent);
             visit(stmt);
         }
-        newline(0);
+        newline(--indent);
         writer.write("}");
 
         return null;
@@ -204,11 +205,12 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.write(") {");
 
         if (!stmts.isEmpty()) {
+            indent++;
             for (Ast.Stmt stmt : stmts) {
-                newline(1);
+                newline(indent);
                 visit(stmt);
             }
-            newline(0);
+            newline(--indent);
         }
         writer.write("}");
 
@@ -246,8 +248,8 @@ public final class Generator implements Ast.Visitor<Void> {
         } else if (literal instanceof String) {
             String str = "\"" + litString + "\"";
             writer.write(str);
-        } else if (litString.equals("NIL")) {
-            writer.write("null");
+        } else {
+            print(literal);
         }
         return null;
     }

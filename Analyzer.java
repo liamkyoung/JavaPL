@@ -227,8 +227,7 @@ public final class Analyzer implements Ast.Visitor<Void> {
         if (lit instanceof Boolean) {
             ast.setType(Environment.Type.BOOLEAN);
         }
-        // How to check for NIL ? ***
-        else if (lit.equals(Environment.Type.NIL)) {
+        else if (lit == null) {
             ast.setType(Environment.Type.NIL);
         } else if (lit instanceof Character) {
             ast.setType(Environment.Type.CHARACTER);
@@ -356,12 +355,15 @@ public final class Analyzer implements Ast.Visitor<Void> {
             ast.setFunction(function);
         } else {
             Environment.Function function = scope.lookupFunction(ast.getName(), ast.getArguments().size());
-            for (Ast.Expr arg : args) {
-                visit(arg);
+            for (int i = 0; i < args.size(); i++) {
+                visit(args.get(i));
+                Environment.Type paramType = args.get(i).getType();
+                requireAssignable(function.getParameterTypes().get(i), paramType);
             }
 
             ast.setFunction(function);
         }
+
         return null;
     }
 
