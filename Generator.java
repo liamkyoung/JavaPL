@@ -3,6 +3,7 @@ package plc.project;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class Generator implements Ast.Visitor<Void> {
@@ -40,7 +41,7 @@ public final class Generator implements Ast.Visitor<Void> {
         writer.write(main0);
         newline(indent);
         newline(++indent);
-        writer.write(main1);
+    writer.write(main1);
         newline(++indent);
         writer.write(main2);
         newline(--indent);
@@ -52,18 +53,27 @@ public final class Generator implements Ast.Visitor<Void> {
     public Void visit(Ast.Source ast) {
         makeMain();
 
-        for (Ast.Field field : ast.getFields()) {
-            newline(++indent);
-            visit(field);
+        if (ast.getFields().size() > 0) {
+            indent++;
+            for (Ast.Field field : ast.getFields()) {
+                newline(indent);
+                visit(field);
+            }
+            newline(--indent);
         }
 
-        for (Ast.Method method : ast.getMethods()) {
-            newline(++indent);
-            visit(method);
+        if (ast.getMethods().size() > 0) {
+            indent++;
+            for (Ast.Method method : ast.getMethods()) {
+                newline(indent);
+                visit(method);
+                newline(0);
+            }
+            indent--;
         }
 
-        newline(--indent);
-        newline(--indent);
+        newline(indent);
+
         writer.write("}");
 
         return null;
@@ -93,7 +103,13 @@ public final class Generator implements Ast.Visitor<Void> {
         String name = ast.getName();
         List<String> params = ast.getParameters();
         // paramTypes may be non-jvm type
-        List<String> paramTypes = ast.getParameterTypeNames();
+        List<String> typeList = ast.getParameterTypeNames();
+        List<String> paramTypes = new ArrayList<String>();
+
+        for (String s : typeList) {
+            paramTypes.add(Environment.getType(s).getJvmName());
+        }
+
         List<Ast.Stmt> stmts = ast.getStatements();
         writer.write(type + " " + name + "(");
 
@@ -184,7 +200,10 @@ public final class Generator implements Ast.Visitor<Void> {
 
     @Override
     public Void visit(Ast.Stmt.For ast) {
-        String loop = String.format("for (int %s : %s) {", ast.getName(), ast.getValue());
+        Ast.Expr.Access value = (Ast.Expr.Access) ast.getValue();
+        String valueName = value.getVariable().getJvmName();
+
+        String loop = String.format("for (int %s : %s) {", ast.getName(), valueName);
         writer.write(loop);
         indent++;
         for (Ast.Stmt stmt : ast.getStatements()) {
